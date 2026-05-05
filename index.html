@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sets Part 2</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --red:    #C0182A;
+    --red-dk: #8B0F1D;
+    --red-lt: #F5C6CB;
+    --bg:     #FDF4F5;
+    --white:  #FFFFFF;
+    --text:   #1A1A1A;
+    --muted:  #666;
+    --border: #E8C0C4;
+    --correct:#1A7A3C;
+    --wrong:  #C0182A;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0 0 60px;
+  }
+
+  header {
+    background: var(--red);
+    color: var(--white);
+    padding: 32px 24px 28px;
+    text-align: center;
+    border-bottom: 4px solid var(--red-dk);
+  }
+  header h1 { font-family: 'DM Serif Display', serif; font-size: 2rem; letter-spacing: -0.5px; }
+  header p  { margin-top: 6px; font-size: 0.9rem; opacity: 0.85; }
+
+  #progress-wrap { background: var(--red-dk); height: 6px; }
+  #progress-bar  { height: 6px; background: #FF8A94; width: 0%; transition: width 0.4s ease; }
+
+  main { max-width: 720px; margin: 0 auto; padding: 32px 20px 0; }
+
+  #counter {
+    font-size: 0.8rem; font-weight: 600;
+    color: var(--red); text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 20px;
+  }
+
+  /* --- Question dots --- */
+  #dots { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 24px; }
+  .dot {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid var(--border); background: var(--white);
+    font-size: 0.7rem; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--muted); transition: all 0.15s;
+  }
+  .dot.current  { border-color: var(--red); color: var(--red); }
+  .dot.answered { background: var(--red); border-color: var(--red); color: #fff; }
+
+  /* --- Question card --- */
+  .question-card {
+    display: none;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 28px 24px;
+    margin-bottom: 16px;
+  }
+  .question-card.active { display: block; }
+
+  /* Shuffle animation */
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .question-card.animating { animation: slideIn 0.28s ease forwards; }
+
+  .q-text {
+    font-size: 1.05rem; font-weight: 500;
+    line-height: 1.6; margin-bottom: 20px;
+  }
+  .q-text code {
+    background: #FDEEF0; color: var(--red);
+    padding: 2px 6px; border-radius: 4px;
+    font-family: 'Courier New', monospace; font-size: 0.95em;
+  }
+
+  /* --- Options --- */
+  .options { display: flex; flex-direction: column; gap: 10px; }
+
+  .option {
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 16px;
+    border: 2px solid var(--border);
+    border-radius: 8px; cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    user-select: none;
+  }
+  .option:hover { border-color: var(--red); background: #FFF5F6; }
+  .option input[type="radio"] { display: none; }
+
+  .radio-dot {
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 2px solid var(--border); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .radio-dot::after {
+    content: ''; width: 8px; height: 8px;
+    border-radius: 50%; background: transparent; transition: background 0.15s;
+  }
+
+  .option.selected           { border-color: var(--red); background: #FFF0F2; }
+  .option.selected .radio-dot{ border-color: var(--red); }
+  .option.selected .radio-dot::after { background: var(--red); }
+
+  .option.correct            { border-color: var(--correct); background: #EAF7EE; }
+  .option.correct .radio-dot { border-color: var(--correct); }
+  .option.correct .radio-dot::after { background: var(--correct); }
+
+  .option.wrong              { border-color: var(--wrong); background: #FDEEF0; }
+  .option.wrong .radio-dot   { border-color: var(--wrong); }
+
+  .option-label { font-size: 0.95rem; }
+
+  .feedback {
+    display: none; margin-top: 14px;
+    padding: 10px 14px; border-radius: 6px;
+    font-size: 0.88rem; font-weight: 500;
+  }
+  .feedback.correct-fb { background: #EAF7EE; color: var(--correct); display: block; }
+  .feedback.wrong-fb   { background: #FDEEF0; color: var(--wrong);   display: block; }
+
+  /* --- Nav --- */
+  .nav {
+    display: flex; justify-content: space-between;
+    align-items: center; margin-top: 18px; gap: 12px;
+  }
+  .btn {
+    padding: 11px 24px; border: none; border-radius: 7px;
+    font-family: 'DM Sans', sans-serif; font-size: 0.9rem;
+    font-weight: 600; cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:active   { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .btn-submit { background: var(--red); color: var(--white); margin-left: auto; }
+  .btn-next   { background: var(--red); color: var(--white); }
+  .btn-prev   { background: var(--white); color: var(--red); border: 2px solid var(--red); }
+
+  /* --- Result --- */
+  #result {
+    display: none; text-align: center;
+    padding: 48px 24px;
+    background: var(--white);
+    border: 1px solid var(--border); border-radius: 12px;
+  }
+  #result .score {
+    font-family: 'DM Serif Display', serif;
+    font-size: 4rem; color: var(--red); line-height: 1;
+  }
+  #result .out-of  { font-size: 1.1rem; color: var(--muted); margin-top: 6px; }
+  #result .grade   { margin-top: 20px; font-size: 1.2rem; font-weight: 600; }
+  #result .grade-msg { margin-top: 8px; font-size: 0.95rem; color: var(--muted); }
+  .btn-retry {
+    margin-top: 28px; background: var(--red);
+    color: var(--white); padding: 12px 32px; font-size: 1rem;
+  }
+
+  /* Shuffle badge */
+  #shuffle-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(255,255,255,0.18);
+    border: 1px solid rgba(255,255,255,0.35);
+    color: #fff; font-size: 0.75rem; font-weight: 600;
+    padding: 3px 10px; border-radius: 20px;
+    margin-top: 10px; letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Sets — Part 2</h1>
+  <p>Operations, Laws &amp; Applications · 20 Questions</p>
+  <div id="shuffle-badge">⇄ Questions shuffle every attempt</div>
+</header>
+<div id="progress-wrap"><div id="progress-bar"></div></div>
+
+<main>
+  <div id="quiz-section">
+    <p id="counter"></p>
+    <div id="dots"></div>
+    <div id="questions-container"></div>
+
+    <div class="nav">
+      <button class="btn btn-prev" id="prevBtn" onclick="navigate(-1)">← Previous</button>
+      <button class="btn btn-submit" id="submitBtn" onclick="submitAnswer()" disabled>Check</button>
+      <button class="btn btn-next"   id="nextBtn"   onclick="navigate(1)"  style="display:none">Next →</button>
+    </div>
+  </div>
+
+  <div id="result">
+    <div class="score"     id="scoreNum"></div>
+    <div class="out-of"    id="scoreOut"></div>
+    <div class="grade"     id="gradeText"></div>
+    <div class="grade-msg" id="gradeMsg"></div>
+    <button class="btn btn-retry" onclick="retryQuiz()">Shuffle &amp; Try Again</button>
+  </div>
+</main>
+
+<script>
+/* ─── Question bank (28 questions, 20 picked + shuffled each attempt) ─── */
+const BANK = [
+  {
+    q: "What is the cardinality of the empty set?",
+    opts: ["1", "0", "Undefined", "Infinite"],
+    ans: 1
+  },
+  {
+    q: "Which symbol represents the empty set?",
+    opts: ["Ω", "∅", "∑", "Δ"],
+    ans: 1
+  },
+  {
+    q: "Why is the empty set a subset of every set?",
+    opts: [
+      "Because it has zero cardinality",
+      "Because there is no element in it that could fail the subset test",
+      "Because it is equal to every set",
+      "Because it contains only undefined elements"
+    ],
+    ans: 1
+  },
+  {
+    q: "Given <code>U = {1,2,3,4,5}</code> and <code>A = {2,4}</code>, what is <code>A'</code>?",
+    opts: ["{2,4}", "{1,3,5}", "{1,2,3,4,5}", "∅"],
+    ans: 1
+  },
+  {
+    q: "Given <code>A = {1,2,3}</code> and <code>B = {3,4,5}</code>, what is <code>A ∪ B</code>?",
+    opts: ["{3}", "{1,2,4,5}", "{1,2,3,4,5}", "{1,2,3,3,4,5}"],
+    ans: 2
+  },
+  {
+    q: "Given <code>A = {1,2,3,4}</code> and <code>B = {3,4,5,6}</code>, what is <code>A ∩ B</code>?",
+    opts: ["{1,2,3,4,5,6}", "{3,4}", "{1,2,5,6}", "∅"],
+    ans: 1
+  },
+  {
+    q: "Given <code>A = {1,2,3,4,5}</code> and <code>B = {3,4}</code>, what is <code>A − B</code>?",
+    opts: ["{3,4}", "{1,2,5}", "{1,2,3,4,5}", "{1,2}"],
+    ans: 1
+  },
+  {
+    q: "Is set difference commutative? i.e. does <code>A − B = B − A</code> always hold?",
+    opts: [
+      "Yes, always",
+      "Only when A and B are disjoint",
+      "No, order matters in set difference",
+      "Only when A = B"
+    ],
+    ans: 2
+  },
+  {
+    q: "Two sets A and B are disjoint when:",
+    opts: [
+      "A ⊆ B",
+      "A ∩ B = ∅",
+      "A ∪ B = ∅",
+      "|A| = |B|"
+    ],
+    ans: 1
+  },
+  {
+    q: "Given <code>A = {1,2,3,4}</code> and <code>B = {3,4,5,6}</code>, what is <code>A △ B</code>?",
+    opts: ["{3,4}", "{1,2,3,4,5,6}", "{1,2,5,6}", "{1,2}"],
+    ans: 2
+  },
+  {
+    q: "What does the symmetric difference <code>A △ B</code> represent?",
+    opts: [
+      "All elements in both A and B",
+      "All elements in A or B but NOT in both",
+      "All elements in neither A nor B",
+      "All elements in A that are not in U"
+    ],
+    ans: 1
+  },
+  {
+    q: "If <code>|A| = 5</code>, how many subsets does A have?",
+    opts: ["5", "10", "25", "32"],
+    ans: 3
+  },
+  {
+    q: "Which of the following is always in the power set <code>P(A)</code>?",
+    opts: [
+      "The universal set U",
+      "Only A itself",
+      "The empty set ∅",
+      "Only non-empty subsets"
+    ],
+    ans: 2
+  },
+  {
+    q: "Given <code>A = {a, b}</code>, what is <code>P(A)</code>?",
+    opts: [
+      "{ {a}, {b} }",
+      "{ ∅, {a}, {b} }",
+      "{ ∅, {a}, {b}, {a,b} }",
+      "{ {a,b} }"
+    ],
+    ans: 2
+  },
+  {
+    q: "Given <code>A = {1,2}</code> and <code>B = {x,y,z}</code>, what is <code>|A × B|</code>?",
+    opts: ["2", "3", "5", "6"],
+    ans: 3
+  },
+  {
+    q: "Which of the following is a valid ordered pair in <code>A × B</code> where <code>A={1,2}</code> and <code>B={a,b}</code>?",
+    opts: ["(a, 1)", "(a, b)", "(1, a)", "(1, 2)"],
+    ans: 2
+  },
+  {
+    q: "De Morgan's Law 1 states that <code>(A ∪ B)' =</code>?",
+    opts: ["A' ∪ B'", "A' ∩ B'", "A ∩ B", "(A ∩ B)'"],
+    ans: 1
+  },
+  {
+    q: "De Morgan's Law 2 states that <code>(A ∩ B)' =</code>?",
+    opts: ["A' ∩ B'", "A ∪ B", "A' ∪ B'", "(A ∪ B)'"],
+    ans: 2
+  },
+  {
+    q: "Given <code>U={1..8}</code>, <code>A={1,2,3,4}</code>, <code>B={3,4,5,6}</code>. Verify De Morgan's Law 1: what is <code>(A ∪ B)'</code>?",
+    opts: ["{1,2,3,4,5,6}", "{7,8}", "{3,4}", "{5,6,7,8}"],
+    ans: 1
+  },
+  {
+    q: "Which set law states that <code>A ∪ A = A</code>?",
+    opts: ["Commutative law", "Absorption law", "Identity law", "Idempotent law"],
+    ans: 3
+  },
+  {
+    q: "What does the Absorption law <code>A ∪ (A ∩ B) = A</code> mean in plain terms?",
+    opts: [
+      "The union of A and B is always A",
+      "Adding an overlap you already contain does not change A",
+      "A is a subset of B",
+      "The intersection of A and B equals A"
+    ],
+    ans: 1
+  },
+  {
+    q: "Which of the following is a valid partition of <code>A = {1,2,3,4,5,6}</code>?",
+    opts: [
+      "{ {1,2,3}, {3,4,5,6} }",
+      "{ {1,2}, {3,4}, {5,6} }",
+      "{ {1,2,3,4}, {} }",
+      "{ {1,2,3,4,5} }"
+    ],
+    ans: 1
+  },
+  {
+    q: "A partition requires three conditions. Which of the following is NOT one of them?",
+    opts: [
+      "Every block is non-empty",
+      "Blocks are mutually disjoint",
+      "All blocks together cover the full set",
+      "Every block must have the same number of elements"
+    ],
+    ans: 3
+  },
+  {
+    q: "Using the inclusion-exclusion principle: <code>|A|=6</code>, <code>|B|=8</code>, <code>|A∩B|=3</code>. What is <code>|A∪B|</code>?",
+    opts: ["17", "14", "11", "9"],
+    ans: 2
+  },
+  {
+    q: "In programming, what is the time complexity of a membership check on a <code>Set</code> / <code>HashSet</code>?",
+    opts: ["O(n)", "O(n log n)", "O(log n)", "O(1)"],
+    ans: 3
+  },
+  {
+    q: "Which set operation maps directly to an SQL <code>INNER JOIN</code>?",
+    opts: [
+      "Union — combining all rows from both tables",
+      "Complement — taking everything not in one table",
+      "Cartesian product filtered by a matching condition (intersection)",
+      "Symmetric difference — rows unique to each table"
+    ],
+    ans: 2
+  },
+  {
+    q: "De Morgan's Law in code: which expression is equivalent to <code>!(isAdmin || isModerator)</code>?",
+    opts: [
+      "!isAdmin || !isModerator",
+      "!isAdmin && !isModerator",
+      "isAdmin && isModerator",
+      "isAdmin || isModerator"
+    ],
+    ans: 1
+  },
+  {
+    q: "A set with <code>n = 4</code> elements produces how many rows in a Cartesian product with itself (<code>A × A</code>)?",
+    opts: ["4", "8", "12", "16"],
+    ans: 3
+  }
+];
+
+const TOTAL = 20;
+let quiz    = [];   // shuffled subset of BANK, options also shuffled per question
+let current = 0;
+let userAnswers = [];
+let submitted   = [];
+
+/* ─── Fisher-Yates shuffle ─── */
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* ─── Build quiz from bank: pick TOTAL questions, shuffle them,
+       then shuffle each question's options (tracking correct answer) ─── */
+function buildQuizData() {
+  const picked = shuffle(BANK).slice(0, TOTAL);
+  quiz = picked.map((q, qi) => {
+    // create index array for options and shuffle it
+    const indices = shuffle([0, 1, 2, 3]);
+    const shuffledOpts = indices.map(i => q.opts[i]);
+    const newAns = indices.indexOf(q.ans);   // where did the correct option land?
+    return { q: q.q, opts: shuffledOpts, ans: newAns };
+  });
+  userAnswers = new Array(TOTAL).fill(null);
+  submitted   = new Array(TOTAL).fill(false);
+  current     = 0;
+}
+
+/* ─── Render quiz DOM ─── */
+function renderQuiz() {
+  const container = document.getElementById('questions-container');
+  const dotsEl    = document.getElementById('dots');
+  container.innerHTML = '';
+  dotsEl.innerHTML    = '';
+
+  quiz.forEach((q, i) => {
+    /* Card */
+    const card = document.createElement('div');
+    card.className = 'question-card' + (i === 0 ? ' active' : '');
+    card.id = `q${i}`;
+
+    const qText = document.createElement('p');
+    qText.className = 'q-text';
+    qText.innerHTML = `${i + 1}. ${q.q}`;
+    card.appendChild(qText);
+
+    const opts = document.createElement('div');
+    opts.className = 'options';
+
+    q.opts.forEach((opt, j) => {
+      const label = document.createElement('label');
+      label.className = 'option';
+      label.id = `opt-${i}-${j}`;
+      label.innerHTML = `
+        <input type="radio" name="q${i}" value="${j}">
+        <span class="radio-dot"></span>
+        <span class="option-label">${opt}</span>
+      `;
+      label.addEventListener('click', () => selectOption(i, j));
+      opts.appendChild(label);
+    });
+
+    card.appendChild(opts);
+
+    const fb = document.createElement('div');
+    fb.className = 'feedback';
+    fb.id = `fb-${i}`;
+    card.appendChild(fb);
+
+    container.appendChild(card);
+
+    /* Dot */
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 0 ? ' current' : '');
+    dot.id = `dot-${i}`;
+    dot.textContent = i + 1;
+    dot.addEventListener('click', () => goTo(i));
+    dotsEl.appendChild(dot);
+  });
+
+  updateUI();
+}
+
+/* ─── Interaction ─── */
+function selectOption(qIndex, optIndex) {
+  if (submitted[qIndex]) return;
+  userAnswers[qIndex] = optIndex;
+
+  document.querySelectorAll(`#q${qIndex} .option`).forEach((el, j) => {
+    el.classList.toggle('selected', j === optIndex);
+  });
+
+  if (qIndex === current) {
+    document.getElementById('submitBtn').disabled = false;
+  }
+}
+
+function submitAnswer() {
+  if (submitted[current]) return;
+  const chosen = userAnswers[current];
+  if (chosen === null) return;
+
+  submitted[current] = true;
+  const correct = quiz[current].ans;
+  const fb = document.getElementById(`fb-${current}`);
+
+  document.querySelectorAll(`#q${current} .option`).forEach((el, j) => {
+    if (j === correct) el.classList.add('correct');
+    else if (j === chosen) el.classList.add('wrong');
+  });
+
+  if (chosen === correct) {
+    fb.textContent = '✓ Correct!';
+    fb.className = 'feedback correct-fb';
+  } else {
+    fb.textContent = `✗ Incorrect. The answer is: "${quiz[current].opts[correct]}"`;
+    fb.className = 'feedback wrong-fb';
+  }
+
+  document.getElementById(`dot-${current}`).classList.add('answered');
+  document.getElementById('submitBtn').style.display = 'none';
+  document.getElementById('nextBtn').style.display   = 'inline-block';
+
+  if (current === TOTAL - 1) {
+    document.getElementById('nextBtn').textContent = 'See Results →';
+  }
+
+  updateProgress();
+}
+
+function navigate(dir) {
+  if (current === TOTAL - 1 && dir === 1 && submitted[current]) {
+    showResult(); return;
+  }
+  const next = current + dir;
+  if (next < 0 || next >= TOTAL) return;
+  goTo(next);
+}
+
+function goTo(index) {
+  const prev = document.getElementById(`q${current}`);
+  prev.classList.remove('active');
+  document.getElementById(`dot-${current}`).classList.remove('current');
+
+  current = index;
+
+  const next = document.getElementById(`q${current}`);
+  next.classList.add('active');
+  next.classList.add('animating');
+  next.addEventListener('animationend', () => next.classList.remove('animating'), { once: true });
+
+  document.getElementById(`dot-${current}`).classList.add('current');
+  updateUI();
+}
+
+function updateUI() {
+  const isSubmitted = submitted[current];
+  const hasAnswer   = userAnswers[current] !== null;
+
+  document.getElementById('counter').textContent =
+    `Question ${current + 1} of ${TOTAL}`;
+
+  const sb = document.getElementById('submitBtn');
+  sb.style.display = isSubmitted ? 'none' : 'inline-block';
+  sb.disabled      = !hasAnswer;
+
+  const nb = document.getElementById('nextBtn');
+  nb.style.display = isSubmitted ? 'inline-block' : 'none';
+  nb.textContent   = (current === TOTAL - 1) ? 'See Results →' : 'Next →';
+
+  document.getElementById('prevBtn').disabled = current === 0;
+}
+
+function updateProgress() {
+  const done = submitted.filter(Boolean).length;
+  document.getElementById('progress-bar').style.width =
+    (done / TOTAL * 100) + '%';
+}
+
+function showResult() {
+  document.getElementById('quiz-section').style.display = 'none';
+
+  const score = userAnswers.reduce(
+    (sum, ans, i) => sum + (ans === quiz[i].ans ? 1 : 0), 0
+  );
+  const pct = score / TOTAL;
+
+  document.getElementById('scoreNum').textContent = score;
+  document.getElementById('scoreOut').textContent = `out of ${TOTAL}`;
+
+  let grade, msg;
+  if      (pct >= 0.9) { grade = 'Excellent!';  msg = 'Outstanding. You have a strong command of set operations and laws.'; }
+  else if (pct >= 0.7) { grade = 'Good job!';   msg = 'Solid understanding. Review the questions you missed and retry.'; }
+  else if (pct >= 0.5) { grade = 'Keep going!'; msg = 'You are getting there. Re-read the notes on operations and De Morgan\'s Laws.'; }
+  else                 { grade = 'Needs work.'; msg = 'Go back through Part 2 carefully before retrying. Take your time.'; }
+
+  document.getElementById('gradeText').textContent = grade;
+  document.getElementById('gradeMsg').textContent  = msg;
+  document.getElementById('result').style.display  = 'block';
+}
+
+function retryQuiz() {
+  document.getElementById('progress-bar').style.width = '0%';
+  document.getElementById('result').style.display     = 'none';
+  document.getElementById('quiz-section').style.display = 'block';
+  buildQuizData();
+  renderQuiz();
+}
+
+/* ─── Init ─── */
+buildQuizData();
+renderQuiz();
+</script>
+</body>
+</html>
